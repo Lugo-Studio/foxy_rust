@@ -1,0 +1,26 @@
+[package]
+name = "kemono"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+foxy = { version = "0.1", path = "../foxy" }
+winit = "0.27"
+
+# logging
+tracing = "0.1.37"
+tracing-subscriber = "0.3.16"
+tracing-unwrap = "0.10.0"
+
+# utilities
+type-map = "0.5.0"
+#bytemuck = { version = "1.13.0", features = [ "derive" ] }
+#glam = { version = "0.22.0", features = ["bytemuck"] }
+#image = { version = "0.24.5", features = ["png", "jpeg"] }
+#rgb = { version = "0.8.34", features = ["bytemuck"] }
+#uuid = { version = "1.2.2", features = ["v4", "fast-rng"] }
+
+[[example]]
+name = "kemono_example"
