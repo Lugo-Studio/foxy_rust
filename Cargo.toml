@@ -1,2 +1,2 @@
 [workspace]
-members = ["kemono", "foxy"]
+members = ["kemono", "kemono_transform", "foxy"]

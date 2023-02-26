@@ -7,7 +7,9 @@ edition = "2021"
 
 [dependencies]
 foxy = { version = "0.1", path = "../foxy" }
+kemono_transform = { version = "0.1", path = "../kemono_transform" }
 winit = "0.27"
+#glfw = "0.51.0"
 
 # logging
 tracing = "0.1.37"
@@ -16,11 +18,18 @@ tracing-unwrap = "0.10.0"
 
 # utilities
 type-map = "0.5.0"
+fxhash = "0.2.1"
+strum = "0.24.1"
+strum_macros = "0.24"
 #bytemuck = { version = "1.13.0", features = [ "derive" ] }
 #glam = { version = "0.22.0", features = ["bytemuck"] }
 #image = { version = "0.24.5", features = ["png", "jpeg"] }
 #rgb = { version = "0.8.34", features = ["bytemuck"] }
 #uuid = { version = "1.2.2", features = ["v4", "fast-rng"] }
+
+# ecs
+legion = "0.4.0"
+#rayon = "1.6.1"
 
 [[example]]
 name = "kemono_example"

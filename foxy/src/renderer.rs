@@ -1,23 +1,22 @@
 use std::sync::Arc;
 use tracing::info;
 use tracing_unwrap::{OptionExt, ResultExt};
-use vulkano::{
-  image::SwapchainImage,
-  device::physical::{PhysicalDeviceType},
-  device::{Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo},
-  VulkanLibrary,
-  instance::{
-    Instance,
-    InstanceCreateInfo
-  },
-  Version,
-  swapchain::{Surface, Swapchain, SwapchainCreateInfo}
-};
+use vulkano::{image::SwapchainImage, device::physical::{PhysicalDeviceType}, device::{Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo}, VulkanLibrary, instance::{
+  Instance,
+  InstanceCreateInfo
+}, Version, swapchain::{Surface, Swapchain, SwapchainCreateInfo}, single_pass_renderpass};
+use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
+use vulkano::image::ImageAccess;
+use vulkano::image::view::ImageView;
+use vulkano::pipeline::graphics::viewport::Viewport;
+use vulkano::render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass};
 use vulkano_win::{create_surface_from_winit, required_extensions};
 use winit::{
   event_loop::EventLoop,
   window::{Window, WindowBuilder}
 };
+use kemono_transform::transform::Transform;
+use crate::components::{Material, Mesh};
 
 #[allow(dead_code)]
 pub struct Renderer {
@@ -38,6 +37,37 @@ impl Renderer {
     let (device, queue) = Self::pick_vulkan_device(instance.clone(), surface.clone());
 
     let (mut swapchain, images) = Self::create_vulkan_swapchain(device.clone(), surface.clone());
+
+    let command_buffer_allocator = StandardCommandBufferAllocator::new(
+      device.clone(),
+      Default::default(),
+    );
+
+    let render_pass = single_pass_renderpass!(
+      device.clone(),
+      attachments: {
+        color: {
+          load: Clear,
+          store: Store,
+          format: swapchain.image_format(),
+          samples: 1,
+        }
+      },
+      pass: {
+        color: [color],
+        depth_stencil: {}
+      }
+    ).expect_or_log("Failed to create Vulkan render pass");
+
+    let mut viewport = Viewport {
+      origin: [0., 0.],
+      dimensions: [0., 0.],
+      depth_range: 0.0..1.0,
+    };
+
+    let mut framebuffers = Self::window_size_dependent_setup(&images, render_pass, &mut viewport);
+
+    let mut recreate_swapchain = false;
 
     info!("Initialized renderer.");
     Self {
@@ -161,7 +191,30 @@ impl Renderer {
     .expect_or_log("Failed to create Vulkan swapchain")
   }
 
-  pub fn draw(&mut self) {
+  fn window_size_dependent_setup(
+    images: &[Arc<SwapchainImage>],
+    render_pass: Arc<RenderPass>,
+    viewport: &mut Viewport,
+  ) -> Vec<Arc<Framebuffer>> {
+    let dimensions = images[0].dimensions().width_height();
+    viewport.dimensions = [dimensions[0] as f32, dimensions[1] as f32];
+
+    images
+      .iter()
+      .map(|image| {
+        let view = ImageView::new_default(image.clone()).unwrap_or_log();
+        Framebuffer::new(
+          render_pass.clone(),
+          FramebufferCreateInfo {
+            attachments: vec![view],
+            ..Default::default()
+          },
+        ).unwrap_or_log()
+      })
+      .collect::<Vec<_>>()
+  }
+
+  pub fn draw(&self, mesh: &Mesh, material: &Material, transform: &Transform) {
 
   }
 }
