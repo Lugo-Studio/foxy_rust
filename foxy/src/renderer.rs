@@ -1,22 +1,57 @@
 use std::sync::Arc;
-use tracing::info;
+use tracing::{error, info, trace, warn};
 use tracing_unwrap::{OptionExt, ResultExt};
-use vulkano::{image::SwapchainImage, device::physical::{PhysicalDeviceType}, device::{Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo}, VulkanLibrary, instance::{
-  Instance,
-  InstanceCreateInfo
-}, Version, swapchain::{Surface, Swapchain, SwapchainCreateInfo}, single_pass_renderpass};
-use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
-use vulkano::image::ImageAccess;
-use vulkano::image::view::ImageView;
-use vulkano::pipeline::graphics::viewport::Viewport;
-use vulkano::render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass};
+use vulkano::{
+  image::{
+    SwapchainImage,
+    ImageAccess,
+    view::ImageView
+  },
+  device::{
+    physical::PhysicalDeviceType,
+    Device,
+    DeviceCreateInfo,
+    DeviceExtensions,
+    Queue,
+    QueueCreateInfo
+  },
+  VulkanLibrary,
+  instance::{
+    Instance,
+    InstanceCreateInfo
+  },
+  Version,
+  swapchain::{
+    self,
+    Surface,
+    SwapchainCreateInfo,
+    AcquireError,
+    SwapchainCreationError,
+    SwapchainPresentInfo,
+    PresentMode
+  },
+  single_pass_renderpass,
+  command_buffer::allocator::StandardCommandBufferAllocator,
+  pipeline::graphics::viewport::Viewport,
+  render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass},
+  sync,
+  command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents},
+  format::ClearValue,
+  sync::{FlushError, GpuFuture},
+  swapchain::Swapchain
+};
 use vulkano_win::{create_surface_from_winit, required_extensions};
 use winit::{
   event_loop::EventLoop,
   window::{Window, WindowBuilder}
 };
-use kemono_transform::transform::Transform;
-use crate::components::{Material, Mesh};
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum VsyncMode {
+  Enabled,
+  Disabled,
+  Hybrid,
+}
 
 #[allow(dead_code)]
 pub struct Renderer {
@@ -26,17 +61,25 @@ pub struct Renderer {
   queue: Arc<Queue>,
   swapchain: Arc<Swapchain>,
   images: Vec<Arc<SwapchainImage>>,
+  command_buffer_allocator: StandardCommandBufferAllocator,
+  render_pass: Arc<RenderPass>,
+  viewport: Viewport,
+  framebuffers: Vec<Arc<Framebuffer>>,
+  previous_frame_end: Option<Box<dyn GpuFuture>>,
+  clear_colors: Vec<Option<ClearValue>>,
+  vsync_mode: VsyncMode,
 }
 
 impl Renderer {
-  pub fn from_window(window: Arc<Window>) -> Self {
-    info!("Initializing renderer...");
+  pub fn from_window(window: Arc<Window>, vsync_mode: VsyncMode) -> Self {
+    trace!("Initializing renderer...");
 
     let instance = Self::create_vulkan_instance();
     let surface = create_surface_from_winit(window, instance.clone()).expect_or_log("Failed to create new Vulkan surface");
     let (device, queue) = Self::pick_vulkan_device(instance.clone(), surface.clone());
 
-    let (mut swapchain, images) = Self::create_vulkan_swapchain(device.clone(), surface.clone());
+    let mut vsync_mode = vsync_mode;
+    let (swapchain, images) = Self::create_vulkan_swapchain(device.clone(), surface.clone(), &mut vsync_mode);
 
     let command_buffer_allocator = StandardCommandBufferAllocator::new(
       device.clone(),
@@ -65,11 +108,15 @@ impl Renderer {
       depth_range: 0.0..1.0,
     };
 
-    let mut framebuffers = Self::window_size_dependent_setup(&images, render_pass, &mut viewport);
+    let framebuffers = Self::window_size_dependent_setup(&images, render_pass.clone(), &mut viewport);
 
-    let mut recreate_swapchain = false;
+    let previous_frame_end = Some(Box::new(sync::now(device.clone())) as Box<dyn GpuFuture>);
 
-    info!("Initialized renderer.");
+    let clear_colors = vec![
+      Some([0.0, 0.69, 1.0, 1.0].into())
+    ];
+
+    trace!("Initialized renderer.");
     Self {
       instance,
       surface,
@@ -77,10 +124,17 @@ impl Renderer {
       queue,
       swapchain,
       images,
+      command_buffer_allocator,
+      render_pass,
+      viewport,
+      framebuffers,
+      previous_frame_end,
+      clear_colors,
+      vsync_mode,
     }
   }
 
-  pub fn new() -> (Self, EventLoop<()>) {
+  pub fn new(vsync_mode: VsyncMode) -> (Self, EventLoop<()>) {
     let event_loop = EventLoop::new();
     let window = Arc::new(
       WindowBuilder::new()
@@ -88,7 +142,137 @@ impl Renderer {
         .expect_or_log("Failed to build window")
     );
 
-    (Self::from_window(window), event_loop)
+    (Self::from_window(window, vsync_mode), event_loop)
+  }
+
+  pub fn get_vsync_mode(&self) -> VsyncMode {
+    self.vsync_mode
+  }
+
+  pub fn set_vsync_mode(&mut self, vsync_mode: VsyncMode) {
+    self.vsync_mode = vsync_mode;
+    self.recreate_swapchain();
+    info!("Vsync: {:?}", self.vsync_mode);
+  }
+
+  pub fn render(&mut self) {
+    let (image_index, suboptimal, acquire_future) =
+      match swapchain::acquire_next_image(self.swapchain.clone(), None) {
+        Ok(result) => result,
+        Err(AcquireError::OutOfDate) => {
+          self.recreate_swapchain();
+          return;
+        }
+        Err(e) => {
+          error!("Failed to acquire next swapchain image: {:?}", e);
+          panic!();
+        }
+      };
+
+    if suboptimal {
+      self.recreate_swapchain();
+    }
+
+    let command_buffer = {
+      let mut command_buffer_builder = AutoCommandBufferBuilder::primary(
+        &self.command_buffer_allocator,
+        self.queue.queue_family_index(),
+        CommandBufferUsage::OneTimeSubmit
+      ).unwrap_or_log();
+
+      command_buffer_builder
+        .begin_render_pass(
+          RenderPassBeginInfo {
+            clear_values: self.clear_colors.clone(),
+            ..RenderPassBeginInfo::framebuffer(
+              self.framebuffers[image_index as usize].clone()
+            )
+          },
+          SubpassContents::Inline
+        )
+        .unwrap_or_log()
+        .end_render_pass()
+        .unwrap_or_log();
+
+      command_buffer_builder.build().unwrap_or_log()
+    };
+
+    let future = self.previous_frame_end
+      .take()
+      .unwrap_or_log()
+      .join(acquire_future)
+      .then_execute(self.queue.clone(), command_buffer)
+      .unwrap_or_log()
+      .then_swapchain_present(
+        self.queue.clone(),
+        SwapchainPresentInfo::swapchain_image_index(self.swapchain.clone(), image_index)
+      )
+      .then_signal_fence_and_flush();
+
+    match future {
+      Ok(future) => {
+        self.previous_frame_end = Some(Box::new(future) as Box<_>);
+      },
+      Err(FlushError::OutOfDate) => {
+        self.recreate_swapchain();
+        self.previous_frame_end = Some(Box::new(sync::now(self.device.clone())) as Box<_>);
+      },
+      Err(e) => {
+        error!("Failed to flush future: {:?}", e);
+        self.previous_frame_end = Some(Box::new(sync::now(self.device.clone())) as Box<_>);
+      }
+    }
+  }
+
+  pub fn end_previous_frame(&mut self) {
+    self.previous_frame_end
+      .as_mut()
+      .take()
+      .unwrap_or_log()
+      .cleanup_finished();
+  }
+
+  pub fn recreate_swapchain(&mut self) {
+    let window = self.surface.object().unwrap_or_log().downcast_ref::<Window>().unwrap_or_log();
+    let image_extent: [u32; 2] = window.inner_size().into();
+
+    let (new_swapchain, new_images) = loop {
+      let present_mode = match self.vsync_mode {
+        VsyncMode::Enabled => PresentMode::Fifo,
+        VsyncMode::Disabled => PresentMode::Immediate,
+        VsyncMode::Hybrid => PresentMode::Mailbox,
+      };
+
+      match self.swapchain.recreate(
+        SwapchainCreateInfo {
+          image_extent,
+          present_mode,
+          ..self.swapchain.create_info()
+        }
+      ) {
+        Ok(result) => break result,
+        Err(SwapchainCreationError::ImageExtentNotSupported { .. }) => return,
+        Err(SwapchainCreationError::ImageExtentZeroLengthDimensions { .. }) => {
+          // warn!("Swapchain image extent has zero dimension.");
+          return;
+        },
+        Err(SwapchainCreationError::PresentModeNotSupported) => {
+          warn!("Present mode \"{:?}\" unsupported on device. Defaulting to FIFO", self.vsync_mode);
+          self.vsync_mode = VsyncMode::Enabled;
+        }
+        Err(e) => {
+          error!("Failed to recreate swapchain: {:?}", e);
+          panic!();
+        }
+      };
+    };
+
+    self.swapchain = new_swapchain;
+    self.framebuffers = Self::window_size_dependent_setup(
+      &new_images,
+      self.render_pass.clone(),
+      &mut self.viewport
+    );
   }
 
   fn create_vulkan_instance() -> Arc<Instance> {
@@ -157,7 +341,7 @@ impl Renderer {
     (device, queue)
   }
 
-  fn create_vulkan_swapchain(device: Arc<Device>, surface: Arc<Surface>) -> (Arc<Swapchain>, Vec<Arc<SwapchainImage>>) {
+  fn create_vulkan_swapchain(device: Arc<Device>, surface: Arc<Surface>, vsync_mode: &mut VsyncMode) -> (Arc<Swapchain>, Vec<Arc<SwapchainImage>>) {
     let capabilities = device
       .physical_device()
       .surface_capabilities(&surface, Default::default())
@@ -175,20 +359,43 @@ impl Renderer {
     let window = surface.object().unwrap_or_log().downcast_ref::<Window>().unwrap_or_log();
     let image_extent: [u32; 2] = window.inner_size().into();
 
-    Swapchain::new(
-      device,
-      surface.clone(),
-      SwapchainCreateInfo {
-        min_image_count: capabilities.min_image_count,
-        image_format: Some(image_format),
-        image_extent,
-        image_usage,
-        composite_alpha,
-        image_color_space,
-        ..Default::default()
+    loop {
+      let present_mode = match vsync_mode {
+        VsyncMode::Enabled => PresentMode::Fifo,
+        VsyncMode::Disabled => PresentMode::Immediate,
+        VsyncMode::Hybrid => PresentMode::Mailbox,
+      };
+
+      let swapchain = Swapchain::new(
+        device.clone(),
+        surface.clone(),
+        SwapchainCreateInfo {
+          min_image_count: capabilities.min_image_count,
+          image_format: Some(image_format),
+          image_extent,
+          image_usage,
+          composite_alpha,
+          image_color_space,
+          present_mode,
+          ..Default::default()
+        }
+      );
+
+      match swapchain {
+        Ok(result) => {
+          info!("Vsync: {vsync_mode:?}");
+          break result
+        },
+        Err(SwapchainCreationError::PresentModeNotSupported) => {
+          warn!("Present mode \"{:?}\" unsupported on device. Defaulting to FIFO", present_mode);
+          *vsync_mode = VsyncMode::Enabled;
+        }
+        Err(e) => {
+          warn!("Error creating swapchain: {:?}", e);
+          panic!();
+        }
       }
-    )
-    .expect_or_log("Failed to create Vulkan swapchain")
+    }
   }
 
   fn window_size_dependent_setup(
@@ -212,9 +419,5 @@ impl Renderer {
         ).unwrap_or_log()
       })
       .collect::<Vec<_>>()
-  }
-
-  pub fn draw(&self, mesh: &Mesh, material: &Material, transform: &Transform) {
-
   }
 }

@@ -1,6 +1,6 @@
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::ControlFlow;
-use foxy::prelude::*;
+use foxy::renderer::Renderer;
 
 #[allow(unused)]
 fn main() {

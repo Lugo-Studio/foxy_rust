@@ -21,10 +21,12 @@ vulkano-win = "0.32.0"
 winit = "0.27" # older version required for vulkano-win
 
 # utilities
-#bytemuck = { version = "1.13.0", features = [ "derive" ] }
-#glam = { version = "0.22.0", features = ["bytemuck"] }
+strum = "0.24.1"
+strum_macros = "0.24"
+bytemuck = { version = "1.13.0", features = [ "derive" ] }
+glam = { version = "0.23.0", features = ["bytemuck"] }
 #image = { version = "0.24.5", features = ["png", "jpeg"] }
-#rgb = { version = "0.8.34", features = ["bytemuck"] }
+rgb = { version = "0.8.34", features = ["bytemuck"] }
 #uuid = { version = "1.2.2", features = ["v4", "fast-rng"] }
 
 [[example]]

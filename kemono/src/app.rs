@@ -1,120 +1,72 @@
 use std::sync::Arc;
-use legion::Resources;
-use legion::systems::ParallelRunnable;
-use tracing::info;
+use tracing::{Level, trace};
 use tracing_unwrap::ResultExt;
-
 use winit::{
   event_loop::EventLoop,
-  window::WindowBuilder
+  window::WindowBuilder,
+  dpi::LogicalSize,
+  event::Event
 };
-use winit::dpi::LogicalSize;
-use crate::app_loop::{AppLoop, Time};
+use foxy::renderer::{Renderer, VsyncMode};
 use crate::app_state::AppState;
-use crate::lifecycle::{Event, Lifecycle, LifecycleBuilder};
 
 pub struct App {
+  event_loop: EventLoop<()>,
   app_state: AppState,
-  app_loop: AppLoop,
 }
 
 impl App {
-  pub fn new(
-    title: String,
-    size: LogicalSize<i32>,
-    resources: Resources,
-    time: Time,
-    lifecycle: Lifecycle,
-  ) -> Self {
-    tracing_subscriber::fmt::init();
-    info!("Starting framework...");
+  pub fn new() -> Self {
+    tracing_subscriber::fmt()
+      .with_thread_names(true)
+      .with_max_level(Level::TRACE)
+      .init();
+    trace!("Initializing framework...");
 
     let event_loop = EventLoop::new();
     let window = Arc::new(
       WindowBuilder::new()
-        .with_title(title)
-        .with_inner_size(size)
+        .with_title("Kemono App")
+        .with_inner_size(LogicalSize::new(800, 500))
+        .with_visible(false) // spawn invisible until renderer is ready to avoid white flash
         .build(&event_loop)
         .expect_or_log("Failed to create new Window")
     );
 
+    let app_state = AppState {
+      renderer: Renderer::from_window(window.clone(), VsyncMode::Hybrid),
+    };
+
+    window.set_visible(true);
+
     Self {
-      app_state: AppState::new(window, resources, time, lifecycle),
-      app_loop: AppLoop::new(event_loop),
+      event_loop,
+      app_state,
     }
   }
 
   pub fn run(self) {
-    self.app_loop.run(self.app_state);
+    // this isn't strictly necessary to keep as a non-member fn, but enforces that
+    // the event_loop cannot be owned by AppState or else it'll move the state alongside it,
+    // preventing mutability.
+    Self::run_internal(self.event_loop, self.app_state);
+  }
+
+  fn run_internal(event_loop: EventLoop<()>, mut app_state: AppState) {
+    app_state.on_start();
+    event_loop.run(move |event, _, control_flow| {
+      app_state.renderer.end_previous_frame();
+
+      if let Event::WindowEvent { event, window_id } = event {
+        app_state.window_event_dispatch(event, window_id, control_flow);
+      } else {
+        app_state.app_event_dispatch(event, control_flow);
+      }
+    });
   }
 }
 
-pub struct AppBuilder {
-  title: String,
-  tick_rate: f64,
-  size: (i32, i32),
-  resources: Resources,
-  lifecycle: LifecycleBuilder,
-}
-
-impl AppBuilder {
-  pub fn new() -> Self {
-    Self {
-      title: "Kemono App".into(),
-      tick_rate: 128.,
-      size: (800, 500),
-      resources: Resources::default(),
-      lifecycle: LifecycleBuilder::new(),
-    }
-  }
-
-  pub fn title(mut self, title: &str) -> Self {
-    self.title = title.into();
-    self
-  }
-
-  pub fn tick_rate(mut self, tick_rate: f64) -> Self {
-    self.tick_rate = tick_rate;
-    self
-  }
-
-  pub fn size(mut self, width: i32, height: i32) -> Self {
-    self.size = (width, height);
-    self
-  }
-
-  pub fn insert_resource<T: Send + Sync + Sized + 'static>(mut self, resource: T) -> Self {
-    self.resources.insert(resource);
-    self
-  }
-
-  pub fn insert_system(mut self, event: Event, system: impl ParallelRunnable + 'static) -> Self {
-    self.lifecycle.builders.get_mut(&event).unwrap().add_system(system);
-    self
-  }
-
-  pub fn build(self) -> App {
-    App::new(
-      self.title,
-      LogicalSize::new(self.size.0, self.size.1),
-      self.resources,
-      Time::new(self.tick_rate, 1024),
-      self.lifecycle.build()
-    )
-  }
-
-  pub fn build_and_run(self) {
-    App::new(
-      self.title,
-      LogicalSize::new(self.size.0, self.size.1),
-      self.resources,
-      Time::new(self.tick_rate, 1024),
-      self.lifecycle.build()
-    ).run()
-  }
-}
-
-impl Default for AppBuilder {
+impl Default for App {
   fn default() -> Self {
     Self::new()
   }
