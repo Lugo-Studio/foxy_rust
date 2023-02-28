@@ -1,2 +1,2 @@
 pub mod device;
-mod shader;
+pub mod shader;

@@ -1,6 +1,8 @@
 mod pipeline;
 
+use std::path::PathBuf;
 use std::sync::Arc;
+use enumflags2::BitFlags;
 use tracing::{error, info, trace, warn};
 use tracing_unwrap::{OptionExt, ResultExt};
 use vulkano::{
@@ -31,7 +33,9 @@ use vulkano::{
   swapchain::Swapchain
 };
 use winit::window::Window;
+use crate::shader_builder;
 use crate::vulkan::device::FoxyDevice;
+use crate::vulkan::shader::{Shader, ShaderCreateInfo, ShaderStage};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum VsyncMode {
@@ -104,6 +108,21 @@ impl Renderer {
     let clear_colors = vec![
       Some([0.0, 0.69, 1.0, 1.0].into())
     ];
+
+    // let shader = Shader::new(
+    //   &device,
+    //   ShaderCreateInfo {
+    //     path: PathBuf::from(""),
+    //     vertex: false,
+    //     fragment: false,
+    //     ..Default::default()
+    //   }
+    // );
+
+    let shader = shader_builder!("../res/fixed_value.hlsl")
+      .with_stage(ShaderStage::Vertex)
+      .with_stage(ShaderStage::Fragment)
+      .build(&device);
 
     trace!("Initialized renderer.");
     Self {

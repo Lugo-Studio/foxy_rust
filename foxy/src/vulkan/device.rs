@@ -108,7 +108,8 @@ impl FoxyDevice { // Private
     let library = VulkanLibrary::new()
       .expect_or_log("Failed to load Vulkan library");
 
-    let enabled_extensions = vulkano_win::required_extensions(&library);
+    let mut enabled_extensions = vulkano_win::required_extensions(&library);
+    enabled_extensions.ext_debug_utils = true;
 
     Instance::new(
       library,
@@ -229,10 +230,9 @@ impl FoxyDevice { // Private
         queue_create_infos: vec![
           QueueCreateInfo {
             queue_family_index,
-            ..Default::default()
-          },
-          QueueCreateInfo {
-            queue_family_index,
+            queues: vec![
+              1.0, 1.0
+            ],
             ..Default::default()
           }
         ],
