@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use thiserror::Error;
-use vulkano::format::Format;
-use vulkano::swapchain::{ColorSpace, PresentMode};
+use wgpu::PresentMode;
 use crate::vulkan::shader::ShaderStage;
 
 #[derive(Error, Debug)]

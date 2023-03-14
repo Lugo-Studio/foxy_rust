@@ -1,45 +1,18 @@
 use std::sync::Arc;
 use tracing::{error, info, warn};
 use tracing_unwrap::{OptionExt, ResultExt};
-use vulkano::{
-  device::{
-    Device,
-    DeviceCreateInfo,
-    DeviceExtensions,
-    Queue,
-    QueueCreateInfo,
-    physical::{PhysicalDeviceType}
-  },
-  format::Format,
-  instance::{
-    debug::{DebugUtilsMessageSeverity, DebugUtilsMessageType, DebugUtilsMessenger, DebugUtilsMessengerCreateInfo},
-    Instance,
-    InstanceCreateInfo
-  },
-  swapchain::{ColorSpace, PresentMode, Surface, SurfaceCapabilities},
-  Version,
-  VulkanLibrary,
-};
-use vulkano::pipeline::graphics::viewport::Viewport;
+use wgpu::{Device, Instance, Surface};
 use winit::window::Window;
 
 pub struct EngineDevice {
-  _debug_messenger: Option<DebugUtilsMessenger>,
-
-  _instance: Arc<Instance>,
+  instance: Arc<Instance>,
   surface: Arc<Surface>,
   device: Arc<Device>,
-
-  queues: QueueFamilies,
 }
 
 impl EngineDevice { // Public
   pub fn new(
-    window: Arc<Window>,
-    app_name: String,
-    app_version: Version,
-    engine_name: String,
-    engine_version: Version
+    window: Arc<Window>
   ) -> Self {
     let instance = Self::create_instance(app_name, app_version, engine_name, engine_version);
     let _debug_messenger = Self::create_debug_messenger(instance.clone());
@@ -49,11 +22,9 @@ impl EngineDevice { // Public
     let (device, queues) = Self::pick_vulkan_device(instance.clone(), surface.clone());
 
     Self {
-      _debug_messenger,
-      _instance: instance,
+      instance,
       surface,
       device,
-      queues,
     }
   }
 

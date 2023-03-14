@@ -1,25 +1,8 @@
-pub mod vsync;
 pub mod primitives;
 
 use std::sync::Arc;
-use egui_winit_vulkano::{Gui, GuiConfig};
 use tracing::{trace, warn};
 use tracing_unwrap::{OptionExt, ResultExt};
-use vulkano::{
-  command_buffer::{
-    allocator::StandardCommandBufferAllocator,
-    AutoCommandBufferBuilder,
-    CommandBufferUsage,
-    RenderPassBeginInfo,
-    SubpassContents
-  },
-  format::ClearValue,
-  render_pass::Subpass,
-  Version
-};
-use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer, TypedBufferAccess};
-use vulkano::memory::allocator::StandardMemoryAllocator;
-use vulkano::pipeline::graphics::vertex_input::BuffersDefinition;
 use winit::event::WindowEvent;
 use winit::window::Window;
 use crate::{
@@ -28,8 +11,7 @@ use crate::{
     pipeline::{EnginePipeline, EnginePipelineBuilder},
     swapchain::{EngineSwapchain}
   },
-  include_shader,
-  renderer::vsync::VsyncMode
+  include_shader
 };
 use crate::canvas::Canvas;
 use crate::renderer::primitives::Vertex;
@@ -37,39 +19,12 @@ use crate::renderer::primitives::Vertex;
 #[allow(dead_code)]
 pub struct Renderer {
   device: Arc<EngineDevice>,
-  swapchain: EngineSwapchain,
-  pipeline: Arc<EnginePipeline>,
-
-  vertex_buffer: Arc<CpuAccessibleBuffer<[Vertex]>>,
-
-  command_buffer_allocator: StandardCommandBufferAllocator,
-  memory_allocator: Arc<StandardMemoryAllocator>,
-
-  clear_colors: Vec<Option<ClearValue>>,
-
-  gui: Gui,
 }
 
 impl Renderer {
-  pub fn from_canvas(canvas: &Canvas, vsync_mode: VsyncMode) -> Self {
+  pub fn new(canvas: &Canvas) -> Self {
     trace!("Initializing renderer...");
-
-    let device = Arc::new(EngineDevice::new(
-      canvas.window(),
-      "Foxy App".into(),
-      Version::major_minor(0, 1),
-      "Foxy Renderer".into(),
-      Version::major_minor(0, 1),
-    ));
-
-    let command_buffer_allocator = StandardCommandBufferAllocator::new(
-      device.device(),
-      Default::default(),
-    );
-
-    let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(device.device()));
-
-    let swapchain = EngineSwapchain::new(device.clone(), vsync_mode.to_present_mode());
+    let device = Arc::new(EngineDevice::new(canvas.window()));
 
     let shader = include_shader!["../res/shaders/simple.hlsl", device.clone()];
 
