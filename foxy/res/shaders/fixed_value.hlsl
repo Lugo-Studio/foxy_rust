@@ -1,12 +1,12 @@
-struct FragInput
+struct FragmentInput
 {
   float4 position : SV_POSITION;
-  [[vk::location(0)]] float4 color : COLOR0;
+  float4 color    : COLOR0;
 };
 
-FragInput vertex_main(uint vertex_index : SV_VertexID)
+FragmentInput vertex_main(uint vertex_index : SV_VertexID)
 {
-  FragInput output;
+  FragmentInput output;
 
   // Vulkan is (-,-) top-left and (+,+) bottom-right
   float4 positions[3] = {
@@ -27,7 +27,7 @@ FragInput vertex_main(uint vertex_index : SV_VertexID)
   return output;
 }
 
-float4 fragment_main(FragInput input) : SV_TARGET
+float4 fragment_main(FragmentInput input) : SV_TARGET
 {
   return input.color;
 }

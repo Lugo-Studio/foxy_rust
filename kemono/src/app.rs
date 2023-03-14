@@ -1,73 +1,39 @@
-use std::sync::Arc;
+mod state;
+
 use tracing::{Level, trace};
-use tracing_unwrap::ResultExt;
-use winit::{
-  event_loop::EventLoop,
-  window::WindowBuilder,
-  dpi::LogicalSize,
-  event::Event
-};
-use foxy::renderer::{Renderer, VsyncMode};
-use crate::app_state::AppState;
+use foxy::canvas::Canvas;
+use crate::app::state::State;
 
 pub struct App {
-  event_loop: EventLoop<()>,
-  app_state: AppState,
+  canvas: Canvas,
+  state: State,
 }
 
 impl App {
-  pub fn new() -> Self {
-    tracing_subscriber::fmt()
-      .with_thread_names(true)
-      .with_max_level(Level::TRACE)
-      .init();
+  pub fn new(enable_logging: bool) -> Self {
+    if enable_logging {
+      tracing_subscriber::fmt()
+        .with_thread_names(true)
+        .with_max_level(Level::TRACE)
+        .init();
+    }
     trace!("Initializing framework...");
 
-    let event_loop = EventLoop::new();
-    let window = Arc::new(
-      WindowBuilder::new()
-        .with_title("Kemono App")
-        .with_inner_size(LogicalSize::new(800, 500))
-        .with_visible(false) // spawn invisible until renderer is ready to avoid white flash
-        .build(&event_loop)
-        .expect_or_log("Failed to create new Window")
-    );
-
-    let app_state = AppState {
-      renderer: Renderer::from_window(window.clone(), VsyncMode::Hybrid),
-    };
-
-    window.set_visible(true);
+    let (state, canvas) = State::new();
 
     Self {
-      event_loop,
-      app_state,
+      canvas,
+      state
     }
   }
 
   pub fn run(self) {
-    // this isn't strictly necessary to keep as a non-member fn, but enforces that
-    // the event_loop cannot be owned by AppState or else it'll move the state alongside it,
-    // preventing mutability.
-    Self::run_internal(self.event_loop, self.app_state);
-  }
-
-  fn run_internal(event_loop: EventLoop<()>, mut app_state: AppState) {
-    app_state.on_start();
-    event_loop.run(move |event, _, control_flow| {
-      app_state.renderer.end_previous_frame();
-
-      if let Event::WindowEvent { event, window_id } = event {
-        app_state.window_event_dispatch(event, window_id, control_flow);
-      } else {
-        app_state.app_event_dispatch(event, control_flow);
-      }
-    });
+    self.canvas.run(self.state);
   }
 }
 
 impl Default for App {
   fn default() -> Self {
-    Self::new()
+    Self::new(false)
   }
 }

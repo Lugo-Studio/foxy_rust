@@ -9,29 +9,34 @@ authors = ["GTLugo"]
 [dependencies]
 kemono_transform = { version = "0.1", path = "../kemono_transform" }
 
-# logging
-tracing = "0.1.37"
-tracing-subscriber = "0.3.16"
-tracing-unwrap = "0.10.0"
+# logging and errors
+tracing = "0.1"
+tracing-subscriber = "0.3"
+tracing-unwrap = "0.10"
+thiserror = "1.0"
+
 
 # rendering
-vulkano = "0.32.3"
-vulkano-shaders = "0.32.0"
-vulkano-win = "0.32.0"
+vulkano = "0.32"
+vulkano-shaders = "0.32"
+vulkano-win = "0.32"
 winit = "0.27" # older version required for vulkano-win
+egui = "0.21"
+egui_winit_vulkano = "0.23"
 
 # utilities
-strum = "0.24.1"
+strum = "0.24"
 strum_macros = "0.24"
-bytemuck = { version = "1.13.0", features = [ "derive" ] }
-fxhash = "0.2.1"
-glam = { version = "0.23.0", features = ["bytemuck"] }
+bytemuck = { version = "1.13", features = [ "derive" ] }
+fxhash = "0.2"
+glam = { version = "0.23", features = ["bytemuck"] }
 #image = { version = "0.24.5", features = ["png", "jpeg"] }
-rgb = { version = "0.8.34", features = ["bytemuck"] }
-enumflags2 = "0.7.5"
+rgb = { version = "0.8", features = ["bytemuck"] }
+enumflags2 = "0.7"
 #uuid = { version = "1.2.2", features = ["v4", "fast-rng"] }
 
-shaderc = "0.8.2"
+shaderc = "0.8"
+
 
 [[example]]
 name = "foxy_example"

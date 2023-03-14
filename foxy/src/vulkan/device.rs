@@ -1,29 +1,39 @@
 use std::sync::Arc;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 use tracing_unwrap::{OptionExt, ResultExt};
-use vulkano::command_buffer::pool::{CommandPool, CommandPoolCreateInfo};
-use vulkano::device::{Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo};
-use vulkano::format::Format;
-use vulkano::instance::debug::{DebugUtilsMessageSeverity, DebugUtilsMessageType, DebugUtilsMessenger, DebugUtilsMessengerCreateInfo};
-use vulkano::instance::{Instance, InstanceCreateInfo};
-use vulkano::swapchain::{ColorSpace, PresentMode, Surface, SurfaceCapabilities};
-use vulkano::{Version, VulkanLibrary};
-use vulkano::device::physical::{PhysicalDeviceType};
+use vulkano::{
+  device::{
+    Device,
+    DeviceCreateInfo,
+    DeviceExtensions,
+    Queue,
+    QueueCreateInfo,
+    physical::{PhysicalDeviceType}
+  },
+  format::Format,
+  instance::{
+    debug::{DebugUtilsMessageSeverity, DebugUtilsMessageType, DebugUtilsMessenger, DebugUtilsMessengerCreateInfo},
+    Instance,
+    InstanceCreateInfo
+  },
+  swapchain::{ColorSpace, PresentMode, Surface, SurfaceCapabilities},
+  Version,
+  VulkanLibrary,
+};
+use vulkano::pipeline::graphics::viewport::Viewport;
 use winit::window::Window;
 
-pub struct FoxyDevice {
+pub struct EngineDevice {
   _debug_messenger: Option<DebugUtilsMessenger>,
 
-  instance: Arc<Instance>,
+  _instance: Arc<Instance>,
   surface: Arc<Surface>,
-  window: Arc<Window>,
   device: Arc<Device>,
 
-  command_pool: CommandPool,
   queues: QueueFamilies,
 }
 
-impl FoxyDevice { // Public
+impl EngineDevice { // Public
   pub fn new(
     window: Arc<Window>,
     app_name: String,
@@ -33,18 +43,16 @@ impl FoxyDevice { // Public
   ) -> Self {
     let instance = Self::create_instance(app_name, app_version, engine_name, engine_version);
     let _debug_messenger = Self::create_debug_messenger(instance.clone());
-    let surface = vulkano_win::create_surface_from_winit(window.clone(),instance.clone())
+
+    let surface = vulkano_win::create_surface_from_winit(window, instance.clone())
       .expect_or_log("Failed to create new Vulkan surface");
     let (device, queues) = Self::pick_vulkan_device(instance.clone(), surface.clone());
-    let command_pool = Self::create_command_pool(device.clone(), queues.clone());
 
     Self {
       _debug_messenger,
-      instance,
+      _instance: instance,
       surface,
-      window,
       device,
-      command_pool,
       queues,
     }
   }
@@ -57,23 +65,24 @@ impl FoxyDevice { // Public
     self.surface.clone()
   }
 
-  pub fn window(&self) -> Arc<Window> {
-    self.window.clone()
+  pub fn window(&self) -> &Window {
+    self.surface.object().unwrap_or_log().downcast_ref::<Window>().unwrap_or_log()
+  }
+
+  pub fn viewport(&self) -> Viewport {
+    let window_size = self.window().inner_size();
+    Viewport {
+      origin:      [0., 0.],
+      dimensions:  [window_size.width as f32, window_size.height as f32],
+      depth_range: 0.0..1.0,
+    }
   }
 
   pub fn queues(&self) -> QueueFamilies {
     self.queues.clone()
   }
 
-  pub fn command_pool(&self) -> &CommandPool {
-    &self.command_pool
-  }
-
-  pub fn command_pool_mut(&mut self) -> &mut CommandPool {
-    &mut self.command_pool
-  }
-
-  pub fn swapchain_support(&mut self) -> SwapchainSupportDetails {
+  pub fn swapchain_support(&self) -> SwapchainSupportDetails {
     let capabilities = self.device
       .physical_device()
       .surface_capabilities(&self.surface, Default::default())
@@ -82,13 +91,15 @@ impl FoxyDevice { // Public
     let formats = self.device
       .physical_device()
       .surface_formats(&self.surface, Default::default())
-      .unwrap_or_log();
+      .expect_or_log("Failed to access surface formats");
 
     let present_modes = self.device
       .physical_device()
       .surface_present_modes(&self.surface)
-      .unwrap_or_log()
+      .expect_or_log("Failed to access surface present modes")
       .collect();
+
+    // info!("Available present modes: {present_modes:?}");
 
     SwapchainSupportDetails {
       capabilities,
@@ -98,7 +109,7 @@ impl FoxyDevice { // Public
   }
 }
 
-impl FoxyDevice { // Private
+impl EngineDevice { // Private
   fn create_instance(
     application_name: String,
     application_version: Version,
@@ -135,8 +146,8 @@ impl FoxyDevice { // Private
     let mut debug_messenger_create_info = DebugUtilsMessengerCreateInfo::user_callback(
       Arc::new(|message| {
         match message.severity {
-          DebugUtilsMessageSeverity { error: true, .. } => { error!("VULKAN: {}", message.description); }
-          DebugUtilsMessageSeverity { warning: true, .. } => { warn!("VULKAN: {}", message.description); }
+          DebugUtilsMessageSeverity { error: true, .. } => error!("VULKAN: {}", message.description),
+          DebugUtilsMessageSeverity { warning: true, .. } => warn!("VULKAN: {}", message.description),
           _ => {}
         }
       })
@@ -243,18 +254,6 @@ impl FoxyDevice { // Private
     let graphics = queues.next().unwrap_or_log();
     let present = queues.next().unwrap_or_log();
     (device, QueueFamilies { graphics, present })
-  }
-
-  fn create_command_pool(device: Arc<Device>, queues: QueueFamilies) -> CommandPool {
-    CommandPool::new(
-      device,
-      CommandPoolCreateInfo {
-        queue_family_index: queues.graphics.queue_family_index(),
-        transient: true,
-        reset_command_buffer: true,
-        ..Default::default()
-      }
-    ).unwrap_or_log()
   }
 }
 
