@@ -96,7 +96,7 @@ impl Renderer {
         fragment: shader.fragment_state(&[
           Some(wgpu::ColorTargetState {
             format: surface_config.format,
-            blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+            blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
             write_mask: wgpu::ColorWrites::ALL
           })
         ]),

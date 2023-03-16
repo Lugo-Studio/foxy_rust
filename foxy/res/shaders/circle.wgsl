@@ -30,8 +30,8 @@ fn vertex_main(
 fn fragment_main(
   in: FragmentInput
 ) -> @location(0) vec4<f32> {
-  var thicc = 1.0;
-  var fade = 0.005;
+  var thicc = 0.25;
+  var fade = 0.05;
 
   var dist = 1.0 - length(in.uv * 2.0 - 1.0);
   var mask = vec4<f32>(smoothstep(0.0, fade, dist));
