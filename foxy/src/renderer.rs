@@ -2,24 +2,31 @@ pub mod primitives;
 
 use std::iter;
 use std::sync::Arc;
-use rgb::RGBA8;
 use tracing::{error, trace};
 use tracing_unwrap::{OptionExt, ResultExt};
 use wgpu::SurfaceError;
+use wgpu::util::DeviceExt;
 use winit::window::Window;
 use crate::canvas::{CanvasDescriptor, Visibility};
-use crate::color::{FromHex, ToWGPU};
+use crate::color::{RGBA8, FromHex, ToWGPU};
 use crate::include_shader;
 use crate::renderer::primitives::Vertex;
 
 pub struct Renderer {
+  clear_color: RGBA8,
   window: Arc<Window>,
+
   surface: wgpu::Surface,
   surface_config: wgpu::SurfaceConfiguration,
+
   device: wgpu::Device,
   queue: wgpu::Queue,
+
   render_pipeline: wgpu::RenderPipeline,
-  clear_color: RGBA8,
+
+  vertex_buffer: wgpu::Buffer,
+  index_buffer: wgpu::Buffer,
+  index_count: u32,
 }
 
 impl Renderer {
@@ -48,10 +55,10 @@ impl Renderer {
       let surface_capabilities = surface.get_capabilities(&adapter);
 
       let surface_format = surface_capabilities.formats
-                                               .iter()
-                                               .copied()
-                                               .find(|f| f.describe().srgb)
-                                               .unwrap_or(surface_capabilities.formats[0]);
+        .iter()
+        .copied()
+        .find(|f| f.describe().srgb)
+        .unwrap_or(surface_capabilities.formats[0]);
 
       let surface_config = wgpu::SurfaceConfiguration {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -74,7 +81,7 @@ impl Renderer {
 
       surface.configure(&device, &surface_config);
 
-      let shader = include_shader!["../res/shaders/simple.wgsl", device];
+      let shader = include_shader!["../res/shaders/circle.wgsl", device];
 
       let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Render Pipeline Layout"),
@@ -85,7 +92,7 @@ impl Renderer {
       let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Render Pipeline"),
         layout: Some(&render_pipeline_layout),
-        vertex: shader.vertex_state(&[]).unwrap_or_log(),
+        vertex: shader.vertex_state(&[Vertex::layout()]).unwrap_or_log(),
         fragment: shader.fragment_state(&[
           Some(wgpu::ColorTargetState {
             format: surface_config.format,
@@ -111,31 +118,60 @@ impl Renderer {
         multiview: None,
       });
 
-      let _vertices = [
+      let vertices = vec![
         Vertex {
-          position: [-0.5, 0.5, 0.0, 1.0],
-          color: [1.0, 0.0, 0.0, 1.0],
+          position: [-0.5, -0.5, 1.0, 1.0],
+          uv: [0.0, 1.0],
         },
         Vertex {
-          position: [0.5, 0.5, 0.0, 1.0],
-          color: [0.0, 1.0, 0.0, 1.0],
+          position: [0.5, -0.5, 1.0, 1.0],
+          uv: [1.0, 1.0],
         },
         Vertex {
-          position: [0.0, -0.5, 0.0, 1.0],
-          color: [0.0, 0.0, 1.0, 1.0],
+          position: [0.5, 0.5, 1.0, 1.0],
+          uv: [1.0, 0.0],
+        },
+        Vertex {
+          position: [-0.5, 0.5, 1.0, 1.0],
+          uv: [0.0, 0.0],
         },
       ];
+
+      let indices: Vec<u32> = vec![
+        0, 1, 2,
+        2, 3, 0
+      ];
+      let index_count = indices.len() as u32;
+
+      let vertex_buffer = device.create_buffer_init(
+        &wgpu::util::BufferInitDescriptor {
+          label: Some("Vertex Buffer"),
+          usage: wgpu::BufferUsages::VERTEX,
+          contents: bytemuck::cast_slice(&vertices)
+        }
+      );
+
+      let index_buffer = device.create_buffer_init(
+        &wgpu::util::BufferInitDescriptor {
+          label: Some("Index Buffer"),
+          usage: wgpu::BufferUsages::INDEX,
+          contents: bytemuck::cast_slice(&indices)
+        }
+      );
 
       trace!("Initialized renderer.");
 
       Self {
+        clear_color: RGBA8::hex("43bfefff"),
         window,
         surface,
         surface_config,
         device,
         queue,
         render_pipeline,
-        clear_color: RGBA8::from_hex("43bfefff"),
+        vertex_buffer,
+        index_buffer,
+        index_count,
       }
     })).unwrap_or_log()
   }
@@ -179,7 +215,7 @@ impl Renderer {
               resolve_target: None,
               ops: wgpu::Operations {
                 load: wgpu::LoadOp::Clear(
-                  self.clear_color.to_wgpu()
+                  self.clear_color.as_wgpu()
                 ),
                 store: true
               }
@@ -188,7 +224,9 @@ impl Renderer {
           });
 
           render_pass.set_pipeline(&self.render_pipeline);
-          render_pass.draw(0..3, 0..1);
+          render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+          render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+          render_pass.draw_indexed(0..self.index_count, 0, 0..1);
         }
 
         self.queue.submit(iter::once(encoder.finish()));
