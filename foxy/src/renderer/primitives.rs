@@ -6,4 +6,3 @@ pub struct Vertex {
   pub position: [f32; 4],
   pub color: [f32; 4],
 }
-vulkano::impl_vertex!(Vertex, position, color);

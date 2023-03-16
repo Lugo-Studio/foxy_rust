@@ -1,12 +1,12 @@
 mod state;
 
 use tracing::{Level, trace};
-use foxy::canvas::Canvas;
+use foxy::canvas::{Canvas, CanvasDescriptor, Visibility};
+use foxy::winit::dpi::PhysicalSize;
 use crate::app::state::State;
 
 pub struct App {
   canvas: Canvas,
-  state: State,
 }
 
 impl App {
@@ -14,21 +14,24 @@ impl App {
     if enable_logging {
       tracing_subscriber::fmt()
         .with_thread_names(true)
-        .with_max_level(Level::TRACE)
+        .with_max_level(Level::INFO)
         .init();
     }
     trace!("Initializing framework...");
 
-    let (state, canvas) = State::new();
+    let canvas = Canvas::new::<State>(CanvasDescriptor {
+      title: "Kemono App",
+      size: PhysicalSize::new(800, 500),
+      visibility: Visibility::Wait,
+    });
 
     Self {
-      canvas,
-      state
+      canvas
     }
   }
 
   pub fn run(self) {
-    self.canvas.run(self.state);
+    self.canvas.run();
   }
 }
 

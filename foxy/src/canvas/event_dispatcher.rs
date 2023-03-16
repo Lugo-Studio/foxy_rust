@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use winit::{
   dpi::PhysicalPosition,
   event::{ElementState, Event, ModifiersState, MouseButton, MouseScrollDelta, WindowEvent},
@@ -6,12 +7,17 @@ use winit::{
 };
 use winit::dpi::PhysicalSize;
 use winit::event::{ScanCode, VirtualKeyCode};
+use winit::window::Window;
+use crate::canvas::{CanvasDescriptor};
 
 pub trait EventDispatcher {
+  fn new(window: Arc<Window>, descriptor: &CanvasDescriptor) -> Self where Self: Sized;
+
   #[allow(unused)]
   fn window_event_dispatch(
     &mut self,
     event: WindowEvent,
+    window: Arc<Window>,
     window_id: WindowId,
     control_flow: &mut ControlFlow,
   ) {
@@ -61,14 +67,19 @@ pub trait EventDispatcher {
   // Window events fall under this match, but do NOT get processed here.
   // They are caught before this runs by the on_window_event fn.
   #[allow(unused)]
-  fn app_event_dispatch<T: 'static>(
+  fn app_event_dispatch(
     &mut self,
-    event: Event<T>,
+    event: Event<()>,
+    window: Arc<Window>,
     control_flow: &mut ControlFlow,
   ) {
     match event {
       Event::MainEventsCleared => {
         self.on_update();
+        window.request_redraw();
+      }
+      Event::RedrawRequested(_) => {
+        self.on_render();
       }
       Event::LoopDestroyed => {
         self.on_stop();
@@ -87,6 +98,8 @@ pub trait EventDispatcher {
   fn on_start(&mut self) {}
   #[allow(unused)]
   fn on_update(&mut self) {}
+  #[allow(unused)]
+  fn on_render(&mut self);
   #[allow(unused)]
   fn on_stop(&mut self) {}
 

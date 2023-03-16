@@ -1,2 +1,3 @@
 [workspace]
 members = ["kemono", "kemono_transform", "foxy"]
+resolver = "2"
