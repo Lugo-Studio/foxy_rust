@@ -121,19 +121,27 @@ impl Renderer {
       let vertices = vec![
         Vertex {
           position: [-0.5, -0.5, 1.0, 1.0],
+          normal: [0.0, -1.0, 0.0],
           uv: [0.0, 1.0],
+          color: [0.8, 0.1, 0.2, 1.0],
         },
         Vertex {
           position: [0.5, -0.5, 1.0, 1.0],
+          normal: [0.0, -1.0, 0.0],
           uv: [1.0, 1.0],
+          color: [0.8, 0.1, 0.2, 1.0],
         },
         Vertex {
           position: [0.5, 0.5, 1.0, 1.0],
+          normal: [0.0, -1.0, 0.0],
           uv: [1.0, 0.0],
+          color: [0.8, 0.1, 0.2, 1.0],
         },
         Vertex {
           position: [-0.5, 0.5, 1.0, 1.0],
+          normal: [0.0, -1.0, 0.0],
           uv: [0.0, 0.0],
+          color: [0.8, 0.1, 0.2, 1.0],
         },
       ];
 
