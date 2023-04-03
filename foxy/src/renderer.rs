@@ -1,5 +1,8 @@
 pub mod primitives;
+pub mod uniforms;
+mod state;
 
+use std::collections::HashMap;
 use std::iter;
 use std::sync::Arc;
 use tracing::{error, trace};
@@ -8,12 +11,21 @@ use wgpu::SurfaceError;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
 use crate::canvas::{CanvasDescriptor, Visibility};
-use crate::color::{RGBA8, FromHex, ToWGPU};
+use crate::color::{Color, FromHex, ToWGPU};
 use crate::include_shader;
 use crate::renderer::primitives::Vertex;
+use crate::renderer::uniforms::TimeUniform;
+use crate::shader::Shader;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum BuiltInShader {
+  Simple,
+  UV,
+  Ellipse,
+}
 
 pub struct Renderer {
-  clear_color: RGBA8,
+  clear_color: Color,
   window: Arc<Window>,
 
   surface: wgpu::Surface,
@@ -21,8 +33,12 @@ pub struct Renderer {
 
   device: wgpu::Device,
   queue: wgpu::Queue,
+  shaders: HashMap<BuiltInShader, Arc<Shader>>,
 
   render_pipeline: wgpu::RenderPipeline,
+
+  time_uniform: TimeUniform,
+  time_buffer: wgpu::Buffer,
 
   vertex_buffer: wgpu::Buffer,
   index_buffer: wgpu::Buffer,
@@ -81,7 +97,8 @@ impl Renderer {
 
       surface.configure(&device, &surface_config);
 
-      let shader = include_shader!["../res/shaders/circle.wgsl", device];
+      let mut shaders = HashMap::new();
+      shaders.insert(BuiltInShader::Ellipse, include_shader!["../res/shaders/ellipse.wgsl", device]);
 
       let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Render Pipeline Layout"),
@@ -89,6 +106,7 @@ impl Renderer {
         push_constant_ranges: &[],
       });
 
+      let shader = shaders.get(&BuiltInShader::Ellipse).unwrap();
       let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Render Pipeline"),
         layout: Some(&render_pipeline_layout),
@@ -118,30 +136,68 @@ impl Renderer {
         multiview: None,
       });
 
+      let time_uniform = TimeUniform::new();
+      // time_uniform.update()
+
+      let time_buffer = device.create_buffer_init(
+        &wgpu::util::BufferInitDescriptor {
+          label: Some("Time Buffer"),
+          usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+          contents: bytemuck::cast_slice(&[time_uniform])
+        }
+      );
+
+      // let vertices = vec![
+      //   Vertex {
+      //     position: [-0.5, -0.5, 1.0, 1.0],
+      //     normal:   [0.0, -1.0, 0.0],
+      //     uv:       [0.0, 1.0],
+      //     color:    [0.0, 0.0, 0.0, 1.0],
+      //   },
+      //   Vertex {
+      //     position: [0.5, -0.5, 1.0, 1.0],
+      //     normal:   [0.0, -1.0, 0.0],
+      //     uv:       [1.0, 1.0],
+      //     color:    [1.0, 0.0, 0.0, 1.0],
+      //   },
+      //   Vertex {
+      //     position: [0.5, 0.5, 1.0, 1.0],
+      //     normal:   [0.0, -1.0, 0.0],
+      //     uv:       [1.0, 0.0],
+      //     color:    [1.0, 1.0, 0.0, 1.0],
+      //   },
+      //   Vertex {
+      //     position: [-0.5, 0.5, 1.0, 1.0],
+      //     normal:   [0.0, -1.0, 0.0],
+      //     uv:       [0.0, 0.0],
+      //     color:    [0.0, 1.0, 0.0, 1.0],
+      //   },
+      // ];
+
       let vertices = vec![
         Vertex {
           position: [-0.5, -0.5, 1.0, 1.0],
           normal:   [0.0, -1.0, 0.0],
           uv:       [0.0, 1.0],
-          color:    [0.1, 0.1, 0.1, 1.0],
+          color:    [1.0, 1.0, 1.0, 1.0],
         },
         Vertex {
           position: [0.5, -0.5, 1.0, 1.0],
           normal:   [0.0, -1.0, 0.0],
           uv:       [1.0, 1.0],
-          color:    [0.8, 0.1, 0.1, 1.0],
+          color:    [1.0, 1.0, 1.0, 1.0],
         },
         Vertex {
           position: [0.5, 0.5, 1.0, 1.0],
           normal:   [0.0, -1.0, 0.0],
           uv:       [1.0, 0.0],
-          color:    [0.8, 0.8, 0.1, 1.0],
+          color:    [1.0, 1.0, 1.0, 1.0],
         },
         Vertex {
           position: [-0.5, 0.5, 1.0, 1.0],
           normal:   [0.0, -1.0, 0.0],
           uv:       [0.0, 0.0],
-          color:    [0.1, 0.8, 0.1, 1.0],
+          color:    [1.0, 1.0, 1.0, 1.0],
         },
       ];
 
@@ -170,13 +226,17 @@ impl Renderer {
       trace!("Initialized renderer.");
 
       Self {
-        clear_color: RGBA8::hex("43bfefff"),
+        // clear_color: Color::hex("43bfefff"),
+        clear_color: Color::hex("000000ff"),
         window,
         surface,
         surface_config,
         device,
         queue,
+        shaders,
         render_pipeline,
+        time_uniform,
+        time_buffer,
         vertex_buffer,
         index_buffer,
         index_count,
@@ -198,7 +258,7 @@ impl Renderer {
     renderer
   }
 
-  pub fn set_clear_color(&mut self, color: RGBA8) {
+  pub fn set_clear_color(&mut self, color: Color) {
     self.clear_color = color;
   }
 

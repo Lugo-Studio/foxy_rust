@@ -27,9 +27,9 @@ strum_macros = "0.24.3"
 bytemuck = { version = "1.13.1", features = [ "derive" ] }
 glam     = { version = "0.23.0", features = ["bytemuck"] }
 hex      = "0.4.3"
-#image    = { version = "0.24.5", features = ["png", "jpeg"] }
-rgb      = { version = "0.8.36", features = ["bytemuck"] }
+rgb      = "0.8.36"
+image    = { version = "0.24.5", features = ["png", "jpeg"] }
 #uuid     = { version = "1.2.2", features = ["v4", "fast-rng"] }
 
 [[example]]
-name = "foxy_example"
+name = "foxy"

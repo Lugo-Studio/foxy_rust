@@ -29,4 +29,4 @@ tracing-unwrap     = "0.10.0"
 hecs = "0.9.1"
 
 [[example]]
-name = "kemono_example"
+name = "app"

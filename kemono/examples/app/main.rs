@@ -4,5 +4,5 @@ use kemono::app::{App};
 
 fn main() {
   App::new(true)
-    .run();
+      .run();
 }
