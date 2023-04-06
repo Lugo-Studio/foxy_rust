@@ -65,7 +65,11 @@ impl Renderer {
     }
   }
 
-  pub fn render_scene(&mut self) {
+  pub fn render_frame(&mut self) {
+
+  }
+
+  pub fn end_frame(&mut self) {
 
   }
 }

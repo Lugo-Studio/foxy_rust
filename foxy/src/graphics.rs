@@ -35,10 +35,10 @@ impl Graphics {
   }
 
   pub(crate) fn render(&mut self) {
-    self.renderer.render_scene();
+    self.renderer.render_frame();
   }
 
   pub(crate) fn post_render(&mut self) {
-    self.renderer.render_scene();
+    self.renderer.end_frame();
   }
 }
