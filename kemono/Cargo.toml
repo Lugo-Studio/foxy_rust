@@ -1,26 +1,32 @@
 [package]
-name = "kemono"
+name    = "kemono"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["GTLugo"]
 
 [dependencies]
 foxy = { version = "0.1", path = "../foxy" }
-winit = "0.27"
+kemono_transform = { version = "0.1", path = "../kemono_transform" }
 
-# logging
-tracing = "0.1.37"
+## logging and errors ##
+tracing            = "0.1.37"
 tracing-subscriber = "0.3.16"
-tracing-unwrap = "0.10.0"
+tracing-unwrap     = "0.10.0"
 
-# utilities
-type-map = "0.5.0"
+## utilities ##
+#tokio        = { version = "1.26", features = ["full"] }
+#strum        = "0.24.1"
+#strum_macros = "0.24"
+
+## data ##
 #bytemuck = { version = "1.13.0", features = [ "derive" ] }
-#glam = { version = "0.22.0", features = ["bytemuck"] }
-#image = { version = "0.24.5", features = ["png", "jpeg"] }
-#rgb = { version = "0.8.34", features = ["bytemuck"] }
-#uuid = { version = "1.2.2", features = ["v4", "fast-rng"] }
+#glam     = { version = "0.23.0", features = ["bytemuck"] }
+#image    = { version = "0.24.5", features = ["png", "jpeg"] }
+#rgb      = { version = "0.8.34", features = ["bytemuck"] }
+#uuid     = { version = "1.2.2", features = ["v4", "fast-rng"] }
+
+## ecs ##
+hecs = "0.9.1"
 
 [[example]]
-name = "kemono_example"
+name = "app"
