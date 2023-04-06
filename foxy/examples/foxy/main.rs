@@ -9,12 +9,13 @@ impl Runnable for App {
   }
 
   fn update(&mut self, gfx: &mut Graphics, _: &Time) {
-    gfx.submit(Mesh::Triangle(
-      Vertex::new(0., 0., 0.),
-      Vertex::new(0., 0., 0.),
-      Vertex::new(0., 0., 0.),
-      None
-    ));
+    // TODO: implement meshes and rendering
+    // gfx.submit(Mesh::Triangle(
+    //   Vertex::new(0., 0., 0.),
+    //   Vertex::new(0., 0., 0.),
+    //   Vertex::new(0., 0., 0.),
+    //   None
+    // ));
   }
 
   fn tick(&mut self, _: &mut Graphics, _: &Time) {
