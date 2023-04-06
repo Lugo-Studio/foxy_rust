@@ -37,6 +37,10 @@ impl Time {
     &self.delta_time
   }
 
+  pub fn delta_secs(&self) -> f64 {
+    self.delta_time.as_secs_f64()
+  }
+
   pub fn now(&self) -> Instant {
     Instant::now()
   }
