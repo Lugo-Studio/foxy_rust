@@ -1,12 +1,9 @@
 mod state;
 
 use tracing::{Level, trace};
-use foxy::canvas::{Canvas, CanvasDescriptor, Visibility};
-use foxy::winit::dpi::PhysicalSize;
-use crate::app::state::State;
 
 pub struct App {
-  canvas: Canvas,
+
 }
 
 impl App {
@@ -19,19 +16,13 @@ impl App {
     }
     trace!("Initializing framework...");
 
-    let canvas = Canvas::new::<State>(CanvasDescriptor {
-      title: "Kemono App",
-      size: PhysicalSize::new(800, 500),
-      visibility: Visibility::Wait,
-    });
-
     Self {
-      canvas
+
     }
   }
 
   pub fn run(self) {
-    self.canvas.run();
+
   }
 }
 

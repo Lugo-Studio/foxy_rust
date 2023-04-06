@@ -12,7 +12,7 @@
         "args": [
           "build",
           "--example",
-          "kemono_example"
+          "foxy"
         ]
       },
       "args": []
@@ -26,7 +26,7 @@
           "build",
           "--release",
           "--example",
-          "kemono_example"
+          "foxy"
         ]
       },
       "args": []

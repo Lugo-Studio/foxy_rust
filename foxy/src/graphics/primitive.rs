@@ -18,6 +18,20 @@ impl Vertex {
     3 => Float32x4,
   ];
 
+  pub fn new(x: f32, y: f32, z: f32) -> Self {
+    Vertex {
+      position: [x, y, z, 1.],
+      normal:   [0., 0., 0.],
+      uv:       [0., 0.],
+      color:    [1., 1., 1., 1.],
+    }
+  }
+
+  pub fn with_color(mut self, r: f32, g: f32, b: f32, a: f32) -> Self {
+    self.color = [r, g, b, a];
+    self
+  }
+
   pub fn layout<'a>() -> wgpu::VertexBufferLayout<'a> {
     wgpu::VertexBufferLayout {
       array_stride: size_of::<Vertex>() as wgpu::BufferAddress,
@@ -25,4 +39,13 @@ impl Vertex {
       attributes: &Self::ATTRIBUTES,
     }
   }
+}
+
+#[derive(Debug, Clone)]
+pub enum Mesh {
+  Triangle(Vertex, Vertex, Vertex, Option<[f32; 4]>),
+  Square(Vertex, Vertex, Option<[f32; 4]>), // https://math.stackexchange.com/a/506853/1167638
+  Rectangle(Vertex, Vertex, Vertex, Vertex, Option<[f32; 4]>),
+  Circle(Vertex, u32, Option<[f32; 4]>),
+  Custom(Vec<Vertex>)
 }
