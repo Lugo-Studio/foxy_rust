@@ -1,5 +1,6 @@
 use tracing_unwrap::ResultExt;
 use winit::{event_loop::EventLoop, window::WindowBuilder, dpi::{LogicalSize, PhysicalSize}};
+use winit::dpi::PhysicalPosition;
 
 pub struct Window {
   window: winit::window::Window,
@@ -32,6 +33,19 @@ impl Window {
 
   pub fn size(&self) -> PhysicalSize<u32> {
     self.window.inner_size()
+  }
+
+  pub fn center_on_monitor(&mut self) {
+    let monitor = self.window.current_monitor().unwrap();
+    let monitor_center = PhysicalPosition::new(
+      monitor.position().x + (monitor.size().width as f32 * 0.5).floor() as i32,
+      monitor.position().y + (monitor.size().height as f32 * 0.5).floor() as i32
+    );
+    let window_offset = PhysicalPosition::new(
+      monitor_center.x - (self.window.outer_size().width as f32 * 0.5).floor() as i32,
+      monitor_center.y - (self.window.outer_size().height as f32 * 0.5).floor() as i32
+    );
+    self.window.set_outer_position(window_offset);
   }
 
   pub fn size_tuple(&self) -> (u32, u32) {

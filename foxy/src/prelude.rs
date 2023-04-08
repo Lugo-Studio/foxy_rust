@@ -1,6 +1,6 @@
 pub use crate::{
   runnable::Runnable,
-  foxy::{Foxy, Level},
+  framework::{Foxy, Level},
   graphics::{
     Graphics,
     window::Window, 

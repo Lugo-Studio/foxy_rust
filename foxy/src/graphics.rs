@@ -2,6 +2,7 @@ pub mod window;
 pub mod renderer;
 pub mod shader;
 pub mod primitive;
+pub mod color;
 
 use winit::event_loop::EventLoop;
 
@@ -13,10 +14,17 @@ pub struct Graphics {
 }
 
 impl Graphics {
-  pub fn new(title: &'static str, width: u32, height: u32) -> (Self, EventLoop<()>) {
+  pub fn new(title: &'static str, width: u32, height: u32, centered_window: bool) -> (Self, EventLoop<()>) {
+    tracing::trace!("Initializing Graphics...");
+
     let (mut window, event_loop) = Window::new(title, width, height);
+    if centered_window {
+      window.center_on_monitor();
+    }
     let renderer = Renderer::new(&window);
     window.set_visible(true);
+
+    tracing::trace!("Graphics ready!");
 
     let gfx = Self { 
       window,
@@ -35,7 +43,7 @@ impl Graphics {
   }
 
   pub(crate) fn render(&mut self) {
-    self.renderer.render_frame();
+    self.renderer.render_frame(&self.window);
   }
 
   pub(crate) fn post_render(&mut self) {

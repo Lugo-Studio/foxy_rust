@@ -169,7 +169,8 @@ impl ShaderBuilder<ShaderStagesSpecified> {
 macro_rules! shader_builder {
   ($file_name:literal) => {{
     let source = include_str![$file_name];
-    $crate::shader::ShaderBuilder::new($file_name, source.into())
+    use $crate::graphics::shader::ShaderBuilder;
+    ShaderBuilder::new($file_name, source.into())
   }};
 }
 

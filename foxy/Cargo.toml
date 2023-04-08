@@ -26,8 +26,8 @@ strum_macros = "0.24.3"
 ## data ##
 bytemuck = { version = "1.13.1", features = [ "derive" ] }
 #glam     = { version = "0.23.0", features = ["bytemuck"] }
-#hex      = "0.4.3"
-#rgb      = "0.8.36"
+hex      = "0.4.3"
+rgb      = "0.8.36"
 #image    = { version = "0.24.5", features = ["png", "jpeg"] }
 #uuid     = { version = "1.2.2", features = ["v4", "fast-rng"] }
 

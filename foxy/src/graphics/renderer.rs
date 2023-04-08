@@ -1,7 +1,13 @@
+use std::sync::Arc;
 use futures::executor::block_on;
 use tracing_unwrap::{ResultExt, OptionExt};
+use wgpu::{SurfaceError};
+use wgpu::util::DeviceExt;
+use crate::graphics::color::{Color, FromHex, ToWGPU};
 
 use crate::graphics::window::Window;
+use crate::include_shader;
+use crate::prelude::{Shader, Vertex};
 
 #[allow(unused)]
 pub struct Renderer {
@@ -9,6 +15,15 @@ pub struct Renderer {
   device: wgpu::Device,
   queue: wgpu::Queue,
   config: wgpu::SurfaceConfiguration,
+
+  shader: Arc<Shader>,
+  render_pipeline: wgpu::RenderPipeline,
+
+  vertex_buffer: wgpu::Buffer,
+  index_buffer: wgpu::Buffer,
+  index_count: u32,
+
+  clear_color: Color,
 }
 
 impl Renderer {
@@ -56,17 +71,160 @@ impl Renderer {
       view_formats: vec![]
     };
     surface.configure(&device, &config);
+
+    let shader = include_shader!["../../res/shaders/ellipse.wgsl", device];
+
+    let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+      label: Some("Render Pipeline Layout"),
+      bind_group_layouts: &[],
+      push_constant_ranges: &[],
+    });
+    let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+      label: Some("Render Pipeline"),
+      layout: Some(&render_pipeline_layout),
+      vertex: shader.vertex_state(&[Vertex::layout()]).unwrap_or_log(),
+      fragment: shader.fragment_state(&[
+        Some(wgpu::ColorTargetState {
+          format: config.format,
+          blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+          write_mask: wgpu::ColorWrites::ALL
+        })
+      ]),
+      primitive: wgpu::PrimitiveState {
+        topology: wgpu::PrimitiveTopology::TriangleList,
+        strip_index_format: None,
+        front_face: wgpu::FrontFace::Ccw,
+        cull_mode: Some(wgpu::Face::Back),
+        unclipped_depth: false,
+        polygon_mode: wgpu::PolygonMode::Fill,
+        conservative: false,
+      },
+      depth_stencil: None,
+      multisample: wgpu::MultisampleState {
+        count: 1,
+        mask: !0,
+        alpha_to_coverage_enabled: false
+      },
+      multiview: None,
+    });
+
+
+    let vertices = vec![
+      Vertex {
+        position: [-0.5, -0.5, 1.0, 1.0],
+        normal:   [0.0, -1.0, 0.0],
+        uv:       [0.0, 1.0],
+        color:    [0.0, 0.0, 0.0, 1.0],
+      },
+      Vertex {
+        position: [0.5, -0.5, 1.0, 1.0],
+        normal:   [0.0, -1.0, 0.0],
+        uv:       [1.0, 1.0],
+        color:    [0.0, 1.0, 0.0, 1.0],
+      },
+      Vertex {
+        position: [0.5, 0.5, 1.0, 1.0],
+        normal:   [0.0, -1.0, 0.0],
+        uv:       [1.0, 0.0],
+        color:    [1.0, 1.0, 0.0, 1.0],
+      },
+      Vertex {
+        position: [-0.5, 0.5, 1.0, 1.0],
+        normal:   [0.0, -1.0, 0.0],
+        uv:       [0.0, 0.0],
+        color:    [1.0, 0.0, 0.0, 1.0],
+      },
+    ];
+
+    let indices: Vec<u32> = vec![
+      0, 1, 2,
+      2, 3, 0
+    ];
+    let index_count = indices.len() as u32;
+
+    let vertex_buffer = device.create_buffer_init(
+      &wgpu::util::BufferInitDescriptor {
+        label: Some("Vertex Buffer"),
+        usage: wgpu::BufferUsages::VERTEX,
+        contents: bytemuck::cast_slice(&vertices)
+      }
+    );
+
+    let index_buffer = device.create_buffer_init(
+      &wgpu::util::BufferInitDescriptor {
+        label: Some("Index Buffer"),
+        usage: wgpu::BufferUsages::INDEX,
+        contents: bytemuck::cast_slice(&indices)
+      }
+    );
     
-    Self {  
+    Self {
+      clear_color: Color::hex("0099ffff"),
       surface,
       device,
       queue,
       config,
+      shader,
+      render_pipeline,
+      vertex_buffer,
+      index_buffer,
+      index_count,
     }
   }
 
-  pub fn render_frame(&mut self) {
+  pub fn reconfigure(&mut self, window: &Window) {
+    let new_size = window.size();
+    if new_size.width > 0 && new_size.height > 0 {
+      self.config.width = new_size.width;
+      self.config.height = new_size.height;
+      self.surface.configure(&self.device, &self.config);
+    }
+  }
 
+  pub fn render_frame(&mut self, window: &Window) {
+    match self.surface.get_current_texture() {
+      Ok(out) => {
+        if out.suboptimal {
+          self.reconfigure(window);
+        }
+
+        let view = out.texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+          label: Some("Rendering Encoder")
+        });
+
+        {
+          let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+              view: &view,
+              resolve_target: None,
+              ops: wgpu::Operations {
+                load: wgpu::LoadOp::Clear(
+                  self.clear_color.as_wgpu()
+                ),
+                store: true
+              }
+            })],
+            depth_stencil_attachment: None
+          });
+
+          render_pass.set_pipeline(&self.render_pipeline);
+          render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+          render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+          render_pass.draw_indexed(0..self.index_count, 0, 0..1);
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+        out.present();
+      },
+      Err(SurfaceError::Outdated) =>
+        self.reconfigure(window),
+      Err(SurfaceError::Lost) =>
+        self.reconfigure(window),
+      Err(err) => tracing::error!("{err}"),
+    }
   }
 
   pub fn end_frame(&mut self) {
